@@ -1,7 +1,7 @@
 var http = require("http");
 var url = require('url');
 var fs = require('fs');
-var io = require('socket.io'); // 加入 Socket.IO
+var io = require('socket.io');
 var rand = require('generate-key');
 var Vector = require('victor')
 
@@ -11,12 +11,7 @@ var server = http.createServer(function(request, response) {
 
     switch (path) {
         case '/':
-            response.writeHead(200, {'Content-Type': 'text/html'});
-        response.write('Hello, World.');
-        response.end();
-        break;
-        case '/socket.html':
-            fs.readFile(__dirname + path, function(error, data) {
+            fs.readFile(__dirname + '/index.html', function(error, data) {
             if (error){
                 response.writeHead(404);
                 response.write("opps this doesn't exist - 404");
@@ -37,7 +32,7 @@ var server = http.createServer(function(request, response) {
 
 server.listen(8001);
 
-io.listen(server); // 開啟 Socket.IO 的 listene
+io.listen(server);
 
 // Global Game Constants
 var DEFAULT_HP;
@@ -52,6 +47,7 @@ var PLATFORM_WIDTH = 150;
 var PLATFORM_HEIGHT = 30;
 var PLATFORM_V = Vector(0, -1);
 var PLATFORM_A = Vector(0, 0);
+var GRAVITY = Vector(0, -1);
 var MAX_PLAYER_NUM = 20;
 
 
@@ -60,7 +56,7 @@ var player_list = Array(MAX_PLAYER_NUM)
 var platform_list = Array(MAX_PLATFORM_NUM)
 var tick = 0;
 var next_platform_pointer = 0;
-var top_platform_pointer;
+var top_platform_pointer = 0;
 function Platform(type, height, width, p, v, a){
     this.type = type;
     this.height = height;
@@ -69,12 +65,15 @@ function Platform(type, height, width, p, v, a){
     this.v = v;
     this.a = a;
 }
-function Player (account, key, hp, position, on_platform){
-     this.account = account
-     this.key = key
-     this.hp = hp;
-     this.p = position;
-     this.on_platform = on_platform;
+function Player (account, key, id, hp, p, v, a, on_platform){
+    this.account = account
+    this.key = key
+    this.id = id
+    this.hp = hp;
+    this.p = p;
+    this.v = v;
+    this.a = a;
+    this.on_platform = on_platform;
 }
 
 function getPlayerByAuth(auth){
@@ -102,7 +101,6 @@ function randomPlatform(){
 
 function getVoidID(){
     for (var i = 0; i < player_list.length; i ++){
-        console.log(player_list[i])
         if (player_list[i] == null){
             return i;
         }
@@ -135,17 +133,40 @@ function loop(){
         //top_platform_pointer = ((top_platform_pointer + 1) % MAX_platform_NUM)
         next_platform_pointer = ((next_platform_pointer + 1) % MAX_PLATFORM_NUM)
     }
+    // Platforms Go Up
+    if (next_platform_pointer > top_platform_pointer){
+        for (var i = top_platform_pointer; i < next_platform_pointer; i ++){
+            platform_list[i].v.add(platform_list[i].a)
+            platform_list[i].p.add(platform_list[i].v)
+        }
+    }else{
+        for (var i = 0; i < next_platform_pointer; i ++){
+            platform_list[i].v.add(platform_list[i].a)
+            platform_list[i].p.add(platform_list[i].v)
+        }
+        for (var i = top_platform_pointer; i < MAX_PLATFORM_NUM; i ++){
+            platform_list[i].v.add(platform_list[i].a)
+            platform_list[i].p.add(platform_list[i].v)
+        }
+    }
 
-     platform_list[0].v.add(platform_list[0].a)
-     platform_list[0].p.add(platform_list[0].v)
+    for (var player in player_list){
+        if (player != undefined){
+            player.pre_p = p;
+            player.v.add(player.a)
+            player.p.add(player.v)
+        }
+    }
     tick += 1;
-
 }
 var serv_io = io.listen(server);
 
 serv_io.sockets.on('connection', function(socket) {
+    socket.on("disconnect", function(){
+
+    })
     function login(account){
-        var platform = platform_list[platform_list.length - 1]
+        var platform = platform_list[next_platform_pointer - 1]
         var key = rand.generateKey();
         var id = getVoidID()
         if (account == ""){
@@ -160,7 +181,9 @@ serv_io.sockets.on('connection', function(socket) {
                 key,
                 id,
                 DEFAULT_HP,
-                Vector(10, 10),
+                Vector(50, 0),
+                Vector(0, 0),
+                GRAVITY,
                 false
             );
             player_list[id] = player
@@ -176,7 +199,8 @@ serv_io.sockets.on('connection', function(socket) {
     }
     gameloop(function(){
         loop();
-        socket.emit("tmp", platform_list);
+        game_data = {"platform": platform_list, "player": player_list}
+        socket.emit("game_data", game_data);
     }, 1000 / FPS);
     socket.on("login", login);
     socket.on("action", changeAction)
