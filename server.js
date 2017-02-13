@@ -1,4 +1,5 @@
 var http = require("http");
+var p2 = require("p2")
 var url = require('url');
 var fs = require('fs');
 var io = require('socket.io');
@@ -37,47 +38,70 @@ io.listen(server);
 // Global Game Constants
 var DEFAULT_HP;
 var FPS = 20;
+var TIME_STEP = 1 / FPS;
 var ONE_SEC = FPS;
 var MAX_PLATFORM_NUM = 500;
+
 var STAGE_MIN_X = 0;
 var STAGE_MIN_Y = 0;
 var STAGE_MAX_X = 500;
 var STAGE_MAX_Y = 500;
+
 var PLATFORM_WIDTH = 150;
 var PLATFORM_HEIGHT = 30;
-var PLATFORM_V = Vector(0, -1);
-var PLATFORM_A = Vector(0, 0);
-var GRAVITY = Vector(0, -1);
-var MAX_PLAYER_NUM = 20;
+var PLATFORM_MASS = 0;
+var PLATFORM_V = [0, 1]
+var PLATFORM_A = new Vector(0, 0);
 
+var PLAYER_WIDTH = 10;
+var PLAYER_HEIGHT = 10;
+var PLAYER_MASS = 1;
+
+var GRAVITY = [0, -10];
+var MAX_PLAYER_NUM = 20;
 
 // Global Game Variables
 var player_list = Array(MAX_PLAYER_NUM)
+var socket_set = {}
 var platform_list = Array(MAX_PLATFORM_NUM)
 var tick = 0;
 var next_platform_pointer = 0;
 var top_platform_pointer = 0;
-function Platform(type, height, width, p, v, a){
+
+// P2 Setting
+var world = new p2.World({
+    gravity : GRAVITY,
+});
+world.defaultContactMaterial.friction =  0
+world.defaultContactMaterial.restitution = 1
+world.defaultContactMaterial.stiffness = 1000000000;
+world.solver.tolerance = 0.01;
+boxBody1 = new p2.Body({
+    mass: 1,
+    position: [0, -0.5],
+    damping: 0,
+    fixedRotation: true
+});
+boxBody1.addShape(new p2.Box({ width: 1, height: 1 }));
+world.addBody(boxBody1);
+boxBody2 = new p2.Body({
+    mass: 1,
+    position: [0,-0.4],
+    damping: 0,
+    fixedRotation: true
+});
+boxBody2.addShape(new p2.Box({ width: 1, height: 1 }));
+world.addBody(boxBody2);
+
+
+function Platform(type, physic_body){
     this.type = type;
-    this.height = height;
-    this.width = width;
-    this.p = p;
-    this.v = v;
-    this.a = a;
-}
-function Player (account, key, id, hp, p, v, a, on_platform){
-    this.account = account
-    this.key = key
-    this.id = id
-    this.hp = hp;
-    this.p = p;
-    this.v = v;
-    this.a = a;
-    this.on_platform = on_platform;
+    this.physic_body = physic_body
 }
 
+
 function getPlayerByAuth(auth){
-    if(player_list[auth.id].key == auth.key){
+    if(socket == auth.public_key && ){
         return player_list[auth.id];
     }else{
         console.log("Error ID or key!");
@@ -88,25 +112,23 @@ function randomPlatform(){
     var max_x = STAGE_MAX_X - PLATFORM_WIDTH / 2;
     var min_x = STAGE_MIN_X + PLATFORM_WIDTH / 2;
     var x = Math.random() * (max_x - min_x) + min_x;
-    var p = new Platform(
-        1,
-        100,
-        100,
-        Vector(x, STAGE_MAX_Y + PLATFORM_HEIGHT / 2),
-        PLATFORM_V,
-        PLATFORM_A
+    var physic_body = new p2.Body({
+        mass: PLATFORM_MASS,
+        position: [x, 0],
+        velocity: PLATFORM_V;
+        damping: 0,
+        fixedRotation: true,
+    });
+    physic_body.addShape(new p2.Box({ width: PLATFORM_WIDTH, height: PLATFORM_HEIGHT}));
+    world.addBody(physic_body);
+
+    var platform = new Platform(
+        type,
+        physic_body
     )
-    return p;
+    return platform;
 }
 
-function getVoidID(){
-    for (var i = 0; i < player_list.length; i ++){
-        if (player_list[i] == null){
-            return i;
-        }
-    }
-    return null;
-}
 function gameloop(func, wait){
     var l = function(w, t){
         return function(){
@@ -124,51 +146,15 @@ function gameloop(func, wait){
     }(wait);
     setTimeout(l, wait);
 };
-function timeEventHandler(start_time, time_interval, end_time){
-
-}
 function loop(){
-    if(tick % (2 * ONE_SEC) == 0){
-        platform_list[next_platform_pointer] = randomPlatform()
-        //top_platform_pointer = ((top_platform_pointer + 1) % MAX_platform_NUM)
-        next_platform_pointer = ((next_platform_pointer + 1) % MAX_PLATFORM_NUM)
-    }
-    // Platforms Go Up
-    if (next_platform_pointer > top_platform_pointer){
-        for (var i = top_platform_pointer; i < next_platform_pointer; i ++){
-            platform_list[i].v.add(platform_list[i].a)
-            platform_list[i].p.add(platform_list[i].v)
-        }
-    }else{
-        for (var i = 0; i < next_platform_pointer; i ++){
-            platform_list[i].v.add(platform_list[i].a)
-            platform_list[i].p.add(platform_list[i].v)
-        }
-        for (var i = top_platform_pointer; i < MAX_PLATFORM_NUM; i ++){
-            platform_list[i].v.add(platform_list[i].a)
-            platform_list[i].p.add(platform_list[i].v)
-        }
-    }
 
-    for (var player in player_list){
-        if (player != undefined){
-            player.pre_p = p;
-            player.v.add(player.a)
-            player.p.add(player.v)
-        }
-    }
-    tick += 1;
 }
 var serv_io = io.listen(server);
 
 serv_io.sockets.on('connection', function(socket) {
-    socket.on("disconnect", function(){
-
-    })
     function login(account){
-        var platform = platform_list[next_platform_pointer - 1]
-        var key = rand.generateKey();
-        var id = getVoidID()
+        var newest_platform = platform_list[next_platform_pointer - 1]
+        var public_key = rand.generateKey();
         if (account == ""){
             console.log("Void Input!")
             socket.emit("login_key", -1)
@@ -176,32 +162,46 @@ serv_io.sockets.on('connection', function(socket) {
             console.log("Too Many Players")
             socket.emit("login_key", -2)
         }else{
-            var player = new Player(
-                account,
-                key,
-                id,
-                DEFAULT_HP,
-                Vector(50, 0),
-                Vector(0, 0),
-                GRAVITY,
-                false
-            );
-            player_list[id] = player
+            var physic_body = new p2.Body({
+                mass: PLAYER_MASS,
+                position: [0, 0],
+                damping: 0,
+                fixedRotation: true,
+            });
+            physic_body.addShape(new p2.Box({ width: PLAYER_WIDTH, height: PLAYER_HEIGHT}));
+            world.addBody(physic_body);
+
+            //var player = new Player(
+                //account,
+                //socket,
+                //key,
+                //id,
+                //DEFAULT_HP,
+                //new Vector(50, 0),
+                //new Vector(0, 0),
+                //GRAVITY.clone()
+            //);
+            socket.physic_body = physic_body
+            socket.public_key = public_key
+            socket_set[public_id] = socket
+
             console.log("Login Success!")
-            socket.emit("auth_data", {"key": key, "id": id})
+            socket.emit("auth_data", {"public_key": public_key, "id": socket.id})
         }
     }
     function changeAction(data){
-        var auth = data.auth;
-        var action = data.action;
-        var player = getPlayerByAuth(auth)
+        //var player = getPlayerByAuth(auth)
+		socket.action = data.action
         console.log(action)
     }
     gameloop(function(){
         loop();
         game_data = {"platform": platform_list, "player": player_list}
-        socket.emit("game_data", game_data);
+        socket.emit("game_data", "13");
     }, 1000 / FPS);
     socket.on("login", login);
     socket.on("action", changeAction)
+    socket.on("disconnect", function(){
+        console.log(socket.id)
+    })
 });
