@@ -51,7 +51,6 @@ var PLATFORM_WIDTH = 150;
 var PLATFORM_HEIGHT = 30;
 var PLATFORM_MASS = 0;
 var PLATFORM_V = [0, 1]
-var PLATFORM_A = new Vector(0, 0);
 
 var PLAYER_WIDTH = 10;
 var PLAYER_HEIGHT = 10;
@@ -76,22 +75,6 @@ world.defaultContactMaterial.friction =  0
 world.defaultContactMaterial.restitution = 1
 world.defaultContactMaterial.stiffness = 1000000000;
 world.solver.tolerance = 0.01;
-boxBody1 = new p2.Body({
-    mass: 1,
-    position: [0, -0.5],
-    damping: 0,
-    fixedRotation: true
-});
-boxBody1.addShape(new p2.Box({ width: 1, height: 1 }));
-world.addBody(boxBody1);
-boxBody2 = new p2.Body({
-    mass: 1,
-    position: [0,-0.4],
-    damping: 0,
-    fixedRotation: true
-});
-boxBody2.addShape(new p2.Box({ width: 1, height: 1 }));
-world.addBody(boxBody2);
 
 
 function Platform(type, physic_body){
@@ -100,13 +83,6 @@ function Platform(type, physic_body){
 }
 
 
-function getPlayerByAuth(auth){
-    if(socket == auth.public_key && ){
-        return player_list[auth.id];
-    }else{
-        console.log("Error ID or key!");
-    }
-}
 
 function randomPlatform(){
     var max_x = STAGE_MAX_X - PLATFORM_WIDTH / 2;
