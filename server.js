@@ -90,8 +90,8 @@ function randomPlatform(){
     var x = Math.random() * (max_x - min_x) + min_x;
     var physic_body = new p2.Body({
         mass: PLATFORM_MASS,
-        position: [x, 0],
-        velocity: PLATFORM_V;
+        position: [x, 0 - PLATFORM_HEIGHT / 2],
+        velocity: PLATFORM_V,
         damping: 0,
         fixedRotation: true,
     });
@@ -99,7 +99,7 @@ function randomPlatform(){
     world.addBody(physic_body);
 
     var platform = new Platform(
-        type,
+        0,
         physic_body
     )
     return platform;
