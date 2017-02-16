@@ -105,26 +105,36 @@ function randomPlatform(){
     return platform;
 }
 
-function gameloop(func, wait){
-    var l = function(w, t){
-        return function(){
-            if(true){
-                setTimeout(l, w);
-                try{
-                    func.call(null);
-                }
-                catch(e){
-                    t = 0;
-                    throw e.toString();
-                }
-            }
-        };
-    }(wait);
-    setTimeout(l, wait);
-};
+//function gameloop(func, wait){
+    //var l = function(w, t){
+        //return function(){
+            //if(true){
+                //setTimeout(l, w);
+                //try{
+                    //func.call(null);
+                //}
+                //catch(e){
+                    //t = 0;
+                    //throw e.toString();
+                //}
+            //}
+        //};
+    //}(wait);
+    //setTimeout(l, wait);
+//};
 function loop(){
 
 }
+
+setInterval(function(){
+    // The step method moves the bodies forward in time.
+	loop()
+    world.step(TIME_STEP);
+	//console.log(boxBody2.velocity, boxBody1.velocity)
+    // Print the circle position to console.
+    // Could be replaced by a render call.
+
+}, TIME_STEP * 1000);
 var serv_io = io.listen(server);
 
 serv_io.sockets.on('connection', function(socket) {
@@ -170,11 +180,6 @@ serv_io.sockets.on('connection', function(socket) {
 		socket.action = data.action
         console.log(action)
     }
-    gameloop(function(){
-        loop();
-        game_data = {"platform": platform_list, "player": player_list}
-        socket.emit("game_data", "13");
-    }, 1000 / FPS);
     socket.on("login", login);
     socket.on("action", changeAction)
     socket.on("disconnect", function(){
